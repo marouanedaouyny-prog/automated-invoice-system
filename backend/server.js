@@ -1,9 +1,31 @@
 const express = require('express');
 const cors = require('cors');
+require('dotenv').config();
+
 const app = express();
 
-app.use(cors());
+// Restrict CORS to specific origins in production
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'], // Update with your frontend URL
+  credentials: true,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error', 
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong' 
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
 
 let invoices = [
   { id: "INV-001", client: "SkyStream Solutions", amount: 1200.00, status: "Paid", date: "2024-03-01", due: "2024-03-15" },
@@ -14,24 +36,38 @@ let invoices = [
 ];
 
 app.get('/api/invoices', (req, res) => {
-  res.json(invoices);
+  try {
+    res.json(invoices);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve invoices' });
+  }
 });
 
 app.post('/api/generate-pdf', (req, res) => {
-  const { invoiceId } = req.body;
-  const invoice = invoices.find(inv => inv.id === invoiceId);
-  if (!invoice) {
-    return res.status(404).json({ error: "Invoice not found" });
+  try {
+    const { invoiceId } = req.body;
+    
+    if (!invoiceId) {
+      return res.status(400).json({ error: 'invoiceId is required' });
+    }
+    
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    
+    // Simulate PDF generation delay
+    setTimeout(() => {
+      res.json({
+        success: true,
+        message: `Professional PDF for ${invoiceId} has been generated and is ready for download.`,
+        downloadUrl: `#`, // Mock download URL
+        timestamp: new Date().toISOString()
+      });
+    }, 1000);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate PDF' });
   }
-  // Simulate PDF generation delay
-  setTimeout(() => {
-    res.json({ 
-      success: true, 
-      message: `Professional PDF for ${invoiceId} has been generated and is ready for download.`,
-      downloadUrl: `#`, // Mock download URL
-      timestamp: new Date().toISOString()
-    });
-  }, 1000);
 });
 
 const PORT = 5003;
